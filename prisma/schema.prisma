@@ -1,0 +1,80 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id            String    @id @default(cuid())
+  username      String
+  usernameLower String    @unique
+  passwordHash  String
+  role          Role      @default(USER)
+  failedLogins  Int       @default(0)
+  lockedUntil   DateTime?
+  createdAt     DateTime  @default(now())
+  exams         Exam[]
+  results       Result[]
+}
+
+model Exam {
+  key        String   @id
+  ownerId    String?
+  owner      User?    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  builtin    Boolean  @default(false)
+  deleted    Boolean  @default(false)
+  visibility String   @default("private")
+  status     String   @default("active")
+  data       Json
+  updatedAt  DateTime @updatedAt
+  @@index([ownerId])
+}
+
+model PublishRequest {
+  id        String   @id
+  examKey   String
+  userId    String
+  username  String
+  status    String   @default("pending")
+  handledBy String?
+  handledAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([examKey])
+  @@index([userId])
+}
+
+model Result {
+  id        String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  data      Json
+  createdAt DateTime @default(now())
+  @@index([userId])
+}
+
+model AuditLog {
+  id        BigInt   @id @default(autoincrement())
+  at        DateTime @default(now())
+  userId    String?
+  action    String
+  target    String?
+  ip        String?
+  detail    Json?
+  @@index([at])
+  @@index([userId])
+}
+
+model RateLimit {
+  key     String   @id
+  count   Int
+  resetAt DateTime
+}
