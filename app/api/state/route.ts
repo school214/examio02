@@ -1,13 +1,13 @@
-import { auth } from "@/auth";
 import { db } from "@/lib/db";
+import { guard } from "@/lib/guard";
 import { json } from "@/lib/security";
 
-// Returns ONLY what the caller is allowed to see. Anonymous callers get nothing.
-export async function GET() {
-  const session = await auth();
-  const id = (session?.user as any)?.id as string | undefined;
-  const user = id ? await db.user.findUnique({ where: { id } }) : null;
-  if (!user) return json({ user: null });
+// Anonymous visitors use the restricted shared USER account from guard().
+// Admin data remains available only to an authenticated ADMIN account.
+export async function GET(req: Request) {
+  const g = await guard(req);
+  if ("res" in g) return g.res;
+  const { user } = g;
   const admin = user.role === "ADMIN";
 
   const exams = await db.exam.findMany({
@@ -28,6 +28,6 @@ export async function GET() {
       handledBy: r.handledBy ?? undefined, handledAt: r.handledAt?.toISOString(),
       examTitle: (exams.find((e) => e.key === r.examKey)?.data as any)?.title,
     })),
-    results: results.map((r) => ({ ...(r.data as object), id: Number(r.id), user: user.role === "ADMIN" ? (r.data as any).user : user.username })),
+    results: results.map((r) => ({ ...(r.data as object), id: Number(r.id), user: admin ? (r.data as any).user : user.username })),
   });
 }
